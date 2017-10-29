@@ -3,19 +3,19 @@ defmodule BitfinexApi.Public.Ws.Test do
 
   alias BitfinexApi.Public.Ws.Protocol
   alias BitfinexApi.Public.Ws.ProtocolHandler
-  
+
   import Mock
-  
+
   setup do
-    {:ok,pid}=ProtocolHandler.start_link
+    {:ok, pid}=ProtocolHandler.start_link
     on_exit fn->
-      ref  = Process.monitor(pid)      
+      ref=Process.monitor(pid)  
       Process.exit(pid, :normal)
       receive do
-        {:DOWN, ^ref, :process, _, _} ->
+        {:DOWN, ^ref, :process, _, _}->
           :ok
         other->
-          IO.inspect other            
+          IO.inspect other
       end
     end
   end
@@ -175,17 +175,17 @@ defmodule BitfinexApi.Public.Ws.Test do
   test "Test subscriber termination" do
     key="trade:1m:tBTCUSD"
 
-    {:ok,s_pid}=Task.start(fn ->wait_end() end)
-    ref  = Process.monitor(s_pid)    
-      
-    ProtocolHandler.subscribe_candles(s_pid,key)
+    {:ok, s_pid}=Task.start(fn -> wait_end() end)
+    ref = Process.monitor(s_pid)
 
-    assert ProtocolHandler.is_subscribed(s_pid,:candles,key)==true
+    ProtocolHandler.subscribe_candles(s_pid, key)
 
-    send(s_pid,:end)
+    assert ProtocolHandler.is_subscribed(s_pid, :candles, key)==true
+
+    send(s_pid, :end)
     assert_receive {:DOWN, _, :process, _, _}, 1000
 
-    assert ProtocolHandler.is_subscribed(s_pid,:candles,key)==false
+    assert ProtocolHandler.is_subscribed(s_pid, :candles, key)==false
   end
 end
 

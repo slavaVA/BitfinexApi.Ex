@@ -6,6 +6,7 @@ defmodule BitfinexApi.Mixfile do
       app: :bitfinex_api,
       version: "0.1.0",
       elixir: "~> 1.5",
+      source_url: "https://github.com/slavaVA/BitfinexApi.Ex.git",
       start_permanent: Mix.env == :prod,
       deps: deps(),
       aliases: aliases(),
@@ -16,14 +17,15 @@ defmodule BitfinexApi.Mixfile do
 
   defp aliases do
     [
-      test: "test --no-start --cover"
+      test: "test --no-start",
+      test_cover: "test --no-start --cover"
     ]
   end
 
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger,:websockex],
+      extra_applications: [:logger, :websockex, :tesla],
       mod: {BitfinexApi.Public.Ws.Application, []}
     ]
   end
@@ -37,6 +39,7 @@ defmodule BitfinexApi.Mixfile do
       {:poison, "~> 3.1"}, # json parser
       {:exactor, "~> 2.2.3", warn_missing: false},
       {:rop, "~> 0.5"},
+      {:tesla, "~> 0.9.0"},
       {:mock, "~> 0.2.0", only: :test},
       {:credo, "~> 0.3", only: [:dev, :test], runtime: false},
       {:coverex, "~> 1.4.10", only: :test},

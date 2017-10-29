@@ -1,5 +1,6 @@
-# BitfinexApi
+# BitfinexApi v2
 
+Elixir Implementation of Bitfinex API v2
 
 ## Installation
 
