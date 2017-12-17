@@ -15,8 +15,6 @@ defmodule BitfinexApi.Public.Ws.ProtocolHandler do
 
   defcall get_version, state: state, do: reply(state.version)
 
-  #BitfinexApi.Public.Ws.ProtocolHandler.subscribe_candles(self(),"trade:1m:tBTCUSD")
-
   defcast subscribe_candles(pid, key), state: state do
     new_state(subscribe_channel(pid, key, :candles, state))
   end
@@ -52,7 +50,8 @@ defmodule BitfinexApi.Public.Ws.ProtocolHandler do
     new_ch_map = Map.put(state.channels, {ch_name, key}, new_pid_list)
 
     if length(pid_list) > 0 and length(new_pid_list) == 0 and state.ws_client != nil do
-      ch_id = Map.to_list(state.id_map)
+      ch_id = state.id_map
+              |> Map.to_list
               |> Enum.find_value(fn {ch_id, {ch, ch_key}} -> if ch == ch_name and ch_key == key, do: ch_id end)
 
       Logger.debug ("Last pid unsubscribed: #{inspect ch_id}")
@@ -62,14 +61,12 @@ defmodule BitfinexApi.Public.Ws.ProtocolHandler do
   end
 
   defcall is_subscribed(pid, channel, key), state: state do
-    rc = Map.get(state.channels, {channel, key}, [])
-         |> Enum.member?(pid)
+    rc = state.channels |> Map.get({channel, key}, []) |> Enum.member?(pid)
     reply(rc)
   end
 
   defcall get_channel_id(channel, key), state: state do
-    reply Enum.find_value(
-            state.id_map,
+    reply state.id_map |> Enum.find_value(
             fn ({id, v}) ->
               {ch, k} = v
               if ch == channel && k == key do
@@ -109,13 +106,12 @@ defmodule BitfinexApi.Public.Ws.ProtocolHandler do
   end
 
   defhandleinfo {:DOWN, _ref, :process, pid, _reason},state: state do
-    nstate=Map.to_list(state.channels)
-    |>Enum.filter(fn {_k, v} -> 
-      Enum.member?(v,pid)
-    end)
-    |>Enum.reduce(state, fn ({{ch_name, key}, _v}, st) ->
-      unsubscribe_from_channel(pid, key, ch_name, st)
-    end)
+    nstate = state.channels
+      |> Map.to_list()
+      |> Enum.filter(fn {_k, v} -> Enum.member?(v,pid) end)
+      |> Enum.reduce(state, fn ({{ch_name, key}, _v}, st) ->
+        unsubscribe_from_channel(pid, key, ch_name, st)
+      end)
     new_state(nstate)
   end
 
