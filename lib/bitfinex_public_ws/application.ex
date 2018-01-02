@@ -12,8 +12,8 @@ defmodule BitfinexApi.Public.Ws.Application do
     children = [
       # Starts a worker by calling: Bitfinex.Public.Ws.Worker.start_link(arg1, arg2, arg3)
       # worker(Bitfinex.Public.Ws.Worker, [arg1, arg2, arg3]),
-      worker(BitfinexApi.Public.Ws.ProtocolHandler, []),
-      worker(BitfinexApi.Public.Ws.Client, [])
+      # worker(BitfinexApi.Public.Ws.ProtocolHandler, []),
+      # worker(BitfinexApi.Public.Ws.Client, [])
     ]
 
     # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html

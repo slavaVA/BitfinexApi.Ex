@@ -2,190 +2,152 @@ defmodule BitfinexApi.Public.Ws.Test do
   use ExUnit.Case,  async: false
 
   alias BitfinexApi.Public.Ws.Protocol
-  alias BitfinexApi.Public.Ws.ProtocolHandler
+  alias BitfinexApi.Public.Ws.Endpoint
+  alias BitfinexApi.Public.Ws.Client, as: WsClient
 
   import Mock
 
-  setup do
-    {:ok, pid}=ProtocolHandler.start_link
-    on_exit fn->
-      ref=Process.monitor(pid)  
-      Process.exit(pid, :normal)
-      receive do
-        {:DOWN, ^ref, :process, _, _}->
-          :ok
-        other->
-          IO.inspect other
-      end
+  test "Connect sequnce" do
+    this=self()
+
+    with_mock WsClient, [
+      start_link: fn(_up_level, _opts)->{:ok, this} end,
+      send_frame: fn(pid, frame)->Kernel.send(pid, frame) end
+      ] do
+        key="trade:1m:tBTCUSD"
+
+        msg_info_version="{\"event\":\"info\",\"version\":2}"
+
+        {:ok, pid}=Endpoint.start_link
+        
+        Endpoint.connect(pid)
+
+        Endpoint.client_connected(pid)
+
+        assert Endpoint.get_version(pid)==nil
+
+        Endpoint.receive_message(pid, msg_info_version)
+
+        assert Endpoint.get_version(pid)==2
+
+        assert Endpoint.is_subscribed(pid, self(), :candles, key)==false
+
+        Endpoint.subscribe_candles(pid, self(), key)
+        assert Endpoint.is_subscribed(pid, self(), :candles, key)==true
+
+        assert_receive ~s({"event":"subscribe","channel":"candles","key":"trade:1m:tBTCUSD"}), 500
+
+        msg_subscribed="{\"event\":\"subscribed\",\"channel\":\"candles\",\"chanId\":118949,\"key\":\"trade:1m:tBTCUSD\"}"
+        :ok=Endpoint.receive_message(pid, msg_subscribed)
+
+        assert Endpoint.get_channel_id(pid, :candles, key)==118949
+
+        assert Endpoint.get_channel_id(pid, :candles1, key)==nil
+              
+        Endpoint.unsubscribe_candles(pid, self(), key)
+        assert Endpoint.is_subscribed(pid, self(), :candles, key)==false
+
+        assert_receive ~s({"event":"unsubscribe","chanId":"118949"}), 500
     end
-  end
-
-  # def socket_receive([h|t],result) do
-  #   receive do
-  #     {:"$websockex_send", from, {:text,^h}}->
-  #       :gen.reply(from, :ok)
-  #       socket_receive(t,[true|result])
-  #     other->
-  #       IO.inspect other  
-  #       [false|result]
-  #     after
-  #       5000->
-  #         [false|result]
-  #   end
-  # end
-
-  # def socket_receive([],result) do
-  #   result
-  # end
-
-  # def is_all_socket_message_send?(task), do: assert Task.await(task,2000)|>Enum.all?(fn x->x end) == true
-
-  # defp stop_and_wait_termiantion(pid) do
-  #     ref  = Process.monitor(pid)    
-  #     Process.exit(pid, :normal)
-  #     #assert_receive {:DOWN, ^ref, :process, _, :normal}, 1000
-  #     assert_receive {:DOWN, ^ref, :process, _, _}, 1000
-  # end
-
-  test "Handle version info" do
-    msg_info_version="{\"event\":\"info\",\"version\":2}"
-
-    assert ProtocolHandler.get_version == nil
-
-    ProtocolHandler.receive_message(msg_info_version)
-
-    assert ProtocolHandler.get_version == 2
-
-  end
-
-  test "Subscribe/Unsubsribe" do
-    key="trade:1m:tBTCUSD"
-
-    assert ProtocolHandler.is_subscribed(self(),:candles,key)==false
-
-    ProtocolHandler.subscribe_candles(self(),key)
-    assert ProtocolHandler.is_subscribed(self(),:candles,key)==true
-
-    ProtocolHandler.unsubscribe_candles(self(),key)
-    assert ProtocolHandler.is_subscribed(self(),:candles,key)==false
   end
 
   test "Handle connect event after subscription" do
-    with_mock WebSockex, [send_frame: fn(pid,params) -> 
-      send(pid, params)
-      :ok 
-    end] do
-      key="trade:1m:tBTCUSD"
+    this=self()
+    
+    with_mock WsClient, [
+      start_link: fn(_up_level, _opts)->{:ok, this} end,
+      send_frame: fn(pid, frame)->Kernel.send(pid, frame) end
+      ] do
+        key="trade:1m:tBTCUSD"
 
-      ProtocolHandler.subscribe_candles(self(),key)
-      
-      ProtocolHandler.client_connected(self())
-      
-      assert_receive {:text, "{\"event\":\"subscribe\",\"channel\":\"candles\",\"key\":\"trade:1m:tBTCUSD\"}"},1000
+        {:ok, pid}=Endpoint.start_link
+        
+        Endpoint.connect(pid)
 
-      assert ProtocolHandler.is_subscribed(self(),:candles,key)==true
+        assert Endpoint.is_subscribed(pid, self(), :candles, key)==false
+        
+        Endpoint.subscribe_candles(pid, self(), key)
+        assert Endpoint.is_subscribed(pid, self(), :candles, key)==true
+        
+        Endpoint.client_connected(pid)
 
-    end
-  end
+        assert_receive ~s({"event":"subscribe","channel":"candles","key":"trade:1m:tBTCUSD"}), 500
 
-  test "Handle connect event before subscription" do
-    with_mock WebSockex, [send_frame: fn(pid,params) -> 
-      send(pid, params)
-      :ok 
-    end] do
-      key="trade:1m:tBTCUSD"
-      ProtocolHandler.client_connected(self())
-      
-      ProtocolHandler.subscribe_candles(self(),key)
+        msg_subscribed="{\"event\":\"subscribed\",\"channel\":\"candles\",\"chanId\":118949,\"key\":\"trade:1m:tBTCUSD\"}"
+        :ok=Endpoint.receive_message(pid, msg_subscribed)
+          
+        Endpoint.unsubscribe_candles(pid, self(), key)
+        assert Endpoint.is_subscribed(pid, self(), :candles, key)==false
 
-      assert_receive {:text, "{\"event\":\"subscribe\",\"channel\":\"candles\",\"key\":\"trade:1m:tBTCUSD\"}"},1000
-
-      assert ProtocolHandler.is_subscribed(self(),:candles,key)==true      
-    end
-  end
-
-  test "Handle subscribed event" do
-    key="trade:1m:tBTCUSD"
-    msg="{\"event\":\"subscribed\",\"channel\":\"candles\",\"chanId\":118949,\"key\":\"trade:1m:tBTCUSD\"}"
-
-    :ok=ProtocolHandler.receive_message(msg)
-    assert ProtocolHandler.get_channel_id(:candles,key)==118949
-    assert ProtocolHandler.get_channel_id(:candles1,key)==nil
-
-  end
-
-  test "Handle last unsubscription" do
-    with_mock WebSockex, [send_frame: fn(pid,params) -> 
-      send(pid, params)
-      :ok 
-    end] do
-      key="trade:1m:tBTCUSD"
-      ProtocolHandler.client_connected(self())
-      
-      ProtocolHandler.subscribe_candles(self(),key)
-      
-      assert_receive {:text, "{\"event\":\"subscribe\",\"channel\":\"candles\",\"key\":\"trade:1m:tBTCUSD\"}"},1000            
-
-      assert ProtocolHandler.is_subscribed(self(),:candles,key)==true
-
-      msg="{\"event\":\"subscribed\",\"channel\":\"candles\",\"chanId\":118949,\"key\":\"trade:1m:tBTCUSD\"}"
-      :ok=ProtocolHandler.receive_message(msg)
-
-      ProtocolHandler.unsubscribe_candles(self(),key)  
-      assert_receive {:text, "{\"event\":\"unsubscribe\",\"chanId\":\"118949\"}"},1000            
-
-      assert ProtocolHandler.is_subscribed(self(),:candles,key)==false
-    end    
+        assert_receive ~s({"event":"unsubscribe","chanId":"118949"}), 500
+    end        
   end
 
   test "Handle channel snapshot" do
-      key="trade:1m:tBTCUSD"
+    this=self()
+    with_mock WsClient, [
+      start_link: fn(_up_level,_opts)->{:ok, this} end,
+      send_frame: fn(pid, frame)->Kernel.send(pid, frame) end
+      ] do
+    
+        key="trade:1m:tBTCUSD"
 
-      snapshot_data="""
-      [118949,[[1506845100000,4335.1,4335.1,4335.1,4335.1,0.513457],[1506845040000,4337.5,4335,4337.5,4335,1.07204968]]]
-      """
-      subscribed_event="{\"event\":\"subscribed\",\"channel\":\"candles\",\"chanId\":118949,\"key\":\"trade:1m:tBTCUSD\"}"
+        snapshot_data="""
+        [118949,[[1506845100000,4335.1,4335.1,4335.1,4335.1,0.513457],[1506845040000,4337.5,4335,4337.5,4335,1.07204968]]]
+        """
+        subscribed_event="{\"event\":\"subscribed\",\"channel\":\"candles\",\"chanId\":118949,\"key\":\"trade:1m:tBTCUSD\"}"
 
-      {:ok,{ch,data}}=Protocol.decode_message(snapshot_data)
-      assert ch==118949
-      assert length(data)==2
+        {:ok, pid}=Endpoint.start_link
+        
+        {:ok, {ch, data}}=Protocol.decode_message(snapshot_data)
+        assert ch==118949
+        assert length(data)==2
 
-      ProtocolHandler.subscribe_candles(self(),key)
+        Endpoint.subscribe_candles(pid, self(), key)
 
-      ProtocolHandler.receive_message(subscribed_event)
+        Endpoint.receive_message(pid, subscribed_event)
 
-      ProtocolHandler.receive_message(snapshot_data)
+        Endpoint.receive_message(pid, snapshot_data)
 
-      assert_receive {:cahnnel_data_receive, {"trade:1m:tBTCUSD", %BitfinexApi.Candle{close: 4335.1, high: 4335.1, low: 4335.1, open: 4335.1, time: 1506845100000, volume: 0.513457}}}
-      assert_receive {:cahnnel_data_receive, {"trade:1m:tBTCUSD", %BitfinexApi.Candle{close: 4335, high: 4337.5, low: 4335, open: 4337.5, time: 1506845040000, volume: 1.07204968}}}
+        assert_receive {:cahnnel_data_receive, {"trade:1m:tBTCUSD", %BitfinexApi.Candle{close: 4335.1, high: 4335.1, low: 4335.1, open: 4335.1, time: 1506845100000, volume: 0.513457}}}
+        assert_receive {:cahnnel_data_receive, {"trade:1m:tBTCUSD", %BitfinexApi.Candle{close: 4335, high: 4337.5, low: 4335, open: 4337.5, time: 1506845040000, volume: 1.07204968}}}
+      end
   end
 
-  defp wait_end() do
+  defp wait_end do
     IO.puts "Start receive"
     receive do
-      :end  ->
+      :end->
         IO.puts "End"
         :ok
-      other ->
+      other->
         IO.inspect(other)
         wait_end()
     end  
   end
-
+  
   test "Test subscriber termination" do
-    key="trade:1m:tBTCUSD"
+    this=self()
+    with_mock WsClient, [
+      start_link: fn(_up_level, _opts)->{:ok, this} end,
+      send_frame: fn(pid, frame)->Kernel.send(pid, frame) end
+      ] do
+    
+        key="trade:1m:tBTCUSD"
+        
+        {:ok, pid}=Endpoint.start_link
 
-    {:ok, s_pid}=Task.start(fn -> wait_end() end)
-    ref = Process.monitor(s_pid)
+        {:ok, s_pid}=Task.start(fn->wait_end() end)
+        ref=Process.monitor(s_pid)
 
-    ProtocolHandler.subscribe_candles(s_pid, key)
+        Endpoint.subscribe_candles(pid, s_pid, key)
 
-    assert ProtocolHandler.is_subscribed(s_pid, :candles, key)==true
+        assert Endpoint.is_subscribed(pid, s_pid, :candles, key)==true
 
-    send(s_pid, :end)
-    assert_receive {:DOWN, _, :process, _, _}, 1000
+        send(s_pid, :end)
+        assert_receive {:DOWN, _, :process, _, _}, 1000
 
-    assert ProtocolHandler.is_subscribed(s_pid, :candles, key)==false
+        assert Endpoint.is_subscribed(pid, s_pid, :candles, key)==false
+      end
   end
 end
-

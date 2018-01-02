@@ -17,8 +17,7 @@ defmodule BitfinexApi.Mixfile do
 
   defp aliases do
     [
-      test: "test --no-start",
-      test_cover: "test --no-start --cover"
+      test_cover: "test --cover"
     ]
   end
 
@@ -38,7 +37,7 @@ defmodule BitfinexApi.Mixfile do
       {:websockex, "~> 0.4.0"},
       {:poison, "~> 3.1"}, # json parser
       {:exactor, "~> 2.2.3", warn_missing: false},
-      {:rop, "~> 0.5"},
+      {:ok, "~> 1.9"},
       {:tesla, "~> 0.9.0"},
       {:mock, "~> 0.2.0", only: :test},
       {:credo, "~> 0.3", only: [:dev, :test], runtime: false},

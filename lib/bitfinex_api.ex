@@ -3,6 +3,7 @@ defmodule BitfinexApi do
   Documentation for BitfinexApi.
   """
   defmodule Candle do
+    @moduledoc false
     @type t :: %BitfinexApi.Candle{
       time: non_neg_integer,
       open: non_neg_integer,
@@ -14,17 +15,5 @@ defmodule BitfinexApi do
     @enforce_keys [:time, :open, :high, :low, :close, :volume]
     defstruct [:time, :open, :high, :low, :close, :volume]
   end
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> BitfinexApi.hello
-      :world
-
-  """
-  def hello do
-    :world
-  end
+  
 end
