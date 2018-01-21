@@ -30,9 +30,14 @@ defmodule BitfinexApi.Public.Ws.Endpoint do
 
   defcall get_version, state: state, do: reply(state.version)
 
-  @spec subscribe_candles(pid, pid, String.t) :: :ok
+  # @spec subscribe_candles(pid, String.t) :: :ok
   defcast subscribe_candles(pid, key), state: state do
     new_state(subscribe(pid, key, :candles, state))
+  end
+
+  # @spec subscribe_ticker(pid, String.t) :: :ok
+  defcast subscribe_ticker(pid, symbol), state: state do
+    new_state(subscribe(pid, symbol, :ticker, state))
   end
 
   @spec unsubscribe_candles(pid, pid, String.t) :: :ok
@@ -139,9 +144,14 @@ defmodule BitfinexApi.Public.Ws.Endpoint do
     new_state(nstate)
   end
 
-  defp subscribe_to_channel(pid, channel_name, key) do
-    Logger.info("Sending subscribe request: channel=#{channel_name} key=#{key}")
-    WsClient.send_frame(pid, Protocol.encode_subscribe_request(channel_name, key))
+  defp subscribe_to_channel(pid, :candles, key) do
+    Logger.info("Sending subscribe request: channel=candles key=#{key}")
+    WsClient.send_frame(pid, Protocol.encode_subscribe_request("candles","key", key))
+  end
+
+  defp subscribe_to_channel(pid, :ticker, key) do
+    Logger.info("Sending subscribe request: channel=ticker symbol=#{key}")
+    WsClient.send_frame(pid, Protocol.encode_subscribe_request("ticker","symbol", key))
   end
 
   defp unsubscribe_to_channel(channel_id, pid) do
@@ -159,10 +169,17 @@ defmodule BitfinexApi.Public.Ws.Endpoint do
     state
   end
 
-  defp handle_event(%Protocol.Event{event: "subscribed", chanId: id, channel: ch, key: key}, state) do
-    Logger.debug(fn -> "Handle event Subscribed: id=#{id} channel=#{ch} key=#{key}" end)
-    ch_atom = String.to_existing_atom(ch)
+  defp handle_event(%Protocol.Event{event: "subscribed", chanId: id, channel: "candles", key: key}, state) do
+    Logger.debug(fn -> "Handle event Subscribed: id=#{id} channel=candles key=#{key}" end)
+    ch_atom = :candles #String.to_existing_atom(ch)
     new_id_map = Map.put(state.id_map, id, {ch_atom, key})
+    %State{state | id_map: new_id_map}
+  end
+
+  defp handle_event(%Protocol.Event{event: "subscribed", chanId: id, channel: "ticker", symbol: symbol, pair: pair}, state) do
+    Logger.debug(fn -> "Handle event Subscribed: id=#{id} channel=ticker symbol=#{symbol} pair=#{pair}" end)
+    ch_atom = :ticker #String.to_existing_atom(ch)
+    new_id_map = Map.put(state.id_map, id, {ch_atom, symbol})
     %State{state | id_map: new_id_map}
   end
 
@@ -200,8 +217,8 @@ defmodule BitfinexApi.Public.Ws.Endpoint do
     case Map.fetch(state.channels, ch) do
       {:ok, v} ->
         {:ok, {ch, v}}
-      err ->
-         err
+      _err ->
+         {:error,"No channel found #{inspect ch}"}
     end
   end
 
@@ -233,9 +250,10 @@ defmodule BitfinexApi.Public.Ws.Endpoint do
       {:ok, decoded_data} ->
         pid_list
         |> Enum.each(fn pid ->
-          SubscriberApi.send_to_subscriber(pid, {key, decoded_data})
+          SubscriberApi.send_to_subscriber(pid, ch, {key, decoded_data})
         end)
       err ->
+        Logger.error("Error decode channel data: #{inspect err}")
         err
     end
   end

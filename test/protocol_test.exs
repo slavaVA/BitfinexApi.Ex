@@ -5,7 +5,7 @@ defmodule BitfinexApi.Public.Ws.ProtocolTest do
     test "Decode version info" do
         msg_info_version="{\"event\":\"info\",\"version\":2}"
     
-        {:ok,event}=Protocol.decode_message(msg_info_version)
+        {:ok, event}=Protocol.decode_message(msg_info_version)
         assert event.version == 2
     end
         
@@ -24,7 +24,7 @@ defmodule BitfinexApi.Public.Ws.ProtocolTest do
     end        
 
     test "Encode requests" do
-        req=Protocol.encode_subscribe_request("candles","trade:1m:tBTCUSD")
+        req=Protocol.encode_subscribe_request("candles", "key", "trade:1m:tBTCUSD")
         {:ok,_}=Poison.decode(req)
     end        
 end  

@@ -105,12 +105,28 @@ defmodule BitfinexApi.Public.Ws.Test do
 
         Endpoint.subscribe_candles(pid, self(), key)
 
+        symbol="tBTCUSD"
+        Endpoint.subscribe_ticker(pid, self(), symbol)
+
         Endpoint.receive_message(pid, subscribed_event)
 
         Endpoint.receive_message(pid, snapshot_data)
 
-        assert_receive {:cahnnel_data_receive, {"trade:1m:tBTCUSD", %BitfinexApi.Candle{close: 4335.1, high: 4335.1, low: 4335.1, open: 4335.1, time: 1506845100000, volume: 0.513457}}}
-        assert_receive {:cahnnel_data_receive, {"trade:1m:tBTCUSD", %BitfinexApi.Candle{close: 4335, high: 4337.5, low: 4335, open: 4337.5, time: 1506845040000, volume: 1.07204968}}}
+        assert_receive {:cahnnel_data, :candles, {"trade:1m:tBTCUSD", %BitfinexApi.Candle{close: 4335.1, high: 4335.1, low: 4335.1, open: 4335.1, time: 1506845100000, volume: 0.513457}}}
+        assert_receive {:cahnnel_data, :candles, {"trade:1m:tBTCUSD", %BitfinexApi.Candle{close: 4335, high: 4337.5, low: 4335, open: 4337.5, time: 1506845040000, volume: 1.07204968}}}
+
+        subscribed_event="{\"event\":\"subscribed\",\"channel\":\"ticker\",\"chanId\":2,\"symbol\":\"tBTCUSD\",\"pair\":\"BTCUSD\"}"
+        Endpoint.receive_message(pid, subscribed_event)
+
+        snapshot_data="""
+        [2,[11780,66.13829346,11781,66.38159777,-701,-0.0562,11780,45859.26458538,13017,11621]]
+        """        
+        Endpoint.receive_message(pid, snapshot_data)
+
+        assert_receive {:cahnnel_data, :ticker, {"tBTCUSD", %BitfinexApi.TradeTicker{ask: 11781, ask_size: 66.38159777, bid: 11780,
+        bid_size: 66.13829346, daily_change: -701, daily_change_perc: -0.0562,
+        high: 13017, last_price: 11780, low: 11621, volume: 45859.26458538}}}        
+
       end
   end
 
